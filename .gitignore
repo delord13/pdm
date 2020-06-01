@@ -1,0 +1,8 @@
+# TODO
+TODO.txt
+
+#ignore hidden file
+.*
+ 
+# mais pas ce fichier car utile
+!.gitignore

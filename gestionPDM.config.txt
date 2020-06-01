@@ -1,0 +1,142 @@
+*****
+infos
+*****
+	chèques
+	*******
+		oeufs : 1 chèque année ou 2 chèques (1 par semestre)
+		légumes : 1 ou 2 chèques ou 1 chèque pa mois
+		tous les chèque pour un contrat sont égaux
+		le chèque pour le premier mois incomplet sera encaissé le mois suivant
+	52 semaines
+	***********
+		renouvellement l'été : après moi le déluge !
+	distributions
+	*************
+		pas de distribution la semaine de Noël et celle du jour de l'an
+		panier double la semaine d'avant et la semaine d'après (attention aux quinzaines !)
+	prix
+	****
+		fixés pour l'année : 16 et 3
+	établissement des contrats
+	**************************
+		actuellement feuille de calcul envoyé à l'impétrant : calcul automatique des chèques en fonction de ses choix
+		à proposer en ligne
+
+***************************
+Les difficultés rencontrées
+***************************
+	Incohérences de la base de données
+	**********************************
+		table adherents : 10 doublons + 1 triplon sur 194 = >5%
+		contrat(s) non enregistré(s) dans la table des adherents_distribution (#252)
+		plusieurs contrats mensuels successifs mais un seul enregistré (#203)
+	Donnés enregistrées dans des tables différentes
+	***********************************************
+		report et ajout à la fois table adherents_action et adherents distribution
+	Données non enregistrées
+	************************
+		les dates de fin et de début de contrat ne sont pas enregistrées dans la table spip_adherents_contrats et on ne peut pas les déduire de la table adherent_distribution en cas de contrats successifs de même type
+		contrats mensuels successifs : un seul contrat enregistré : le dernier qui se substitue au précédent
+	Titulaires multiples
+	********************
+		leurs noms peuvent être enregistrés dans la table adherents mais pas leurs emails et leurs téléphone
+		problème d'identification des volontaires multiples d'un même compte
+	Contrats mensuels à cheval sur 2 années
+	***************************************
+		impossibles car 2 types de contrat différents puisque les types de contrats sont fonction du produit et de l'année
+	Année de 52 semaines
+	********************
+		=> décalage de la date anniversaire : renouvellement des contrats au mois d'août. 
+		Est-ce bien raisonnable ?
+	Les problèmes conceptuels
+	*************************
+		- la notion d'adhérent correspond à la fois à des adhérents et à des non-adhérents (simples contacts, titulaire de contrat mensuel, non-adhérent preneur de panier occasionnel) : rien ne les distingue dans la table adherents ; il faut croiser les infos avec la table adherents_contrats et adherents_distribution
+		- la notion de contrat correspond à la fois au type de contrat (légumes ou oeufs pour une année donnée) et le contrat signé par un inscrit ; les dates de début et de fin d'un contrat signé peuvent être différentes de celle du type de contrat correspondant ; pour un type de contrat, il vaudrait mieux parler de date de renouvellement que de date de début et de fin ; de plus la date de renouvellement ne dépend pas du type de contrat mais de l'année
+		- la notion de "mois" (contrat mensuel) : il ne s'agit ni du mois calendaire ni de période de 30 jours mais de 4 dates successives de distribution (mais pas possible à cheval sur 2 années)
+		- la notion de semestre : les 2 semestres ne sont pas identiques en nombre de distributions puisque (en général) un des semestres contient la semaine 25 décembre - 1er janvier
+	Calcul des chèques mensuels
+	***************************
+		pour les contrats annuels ou semestriels complets : 1/12 ou 1/6 du coût total calculé selon le nombre de distributions
+		pour les contrats annuels ou semestriels incomplets : quel diviseur ?
+	RGPD
+	****
+		éliminer de la base de données toutes les informations qui ne concernent ni l'année en cours (T) ni l'année précédente (T-1) : inscrits sans contrat ; contrats, chèques, distributions, report, abandon, volontariat, commentaires des années < T-1 pour les inscrits avec contrat : pb pour les commentaires dont seule la dernière modification est datée
+
+*******************************
+Structure de la base de données
+*******************************
+	nouvelle structure en fonction des remarques précédentes
+	voir https://app.quickdatabasediagrams.com/#/
+	
+***************************
+Passage à la nouvelle appli
+***************************
+	Étant donnée la nouvelle structure de la base de données, il faudra resaisir : 
+		pour les comptes je l'ai fait jusqu'au compte #279 ; il suffira d'ajouter les suivants
+		mise à jour de tous les commentaires
+		saisie de tous les contrats
+		saisie des occasionnels
+		saisie des reports des ajouts pour les distributions futures
+		saisie des volontaires pour les distributions futures
+	=> Attendre une date de renouvellement des contrats ?
+	Test possible avec une partie des données de l'année en cours saisis manuellement
+	
+*************
+Mes questions
+*************
+	Quid des distributions fin d'année ? (j'ai oublié)
+	Peut-il y avoir une annulation de distribution ? Pour savoir si les dates de distribution peuvent ou non être calculée automatiquement.
+
+***********************************************************************************
+configuration gestionPDM
+
+localhost
+	bd : pamaPDM
+	user : pamaPDM
+	pw : 7rutabaga!
+
+pour importer :
+mysql -u root -p pamaPDM < WebPerso/gestionPDM/lespaniegspip.sql
+il suffit de fournir le mot de passe de root (asusual)
+
+quelques requêtes
+*******************************************************************************
+pour affichage adhérents avec leurs contrats  seulement si contrats en cours :
+*******************************************************************************		
+		SELECT a.id_adherent, a.nom, a.tel, a.email, a.comment, c.nom, q.quantite, f.frequence, q.prix FROM spip_adherents_contrats ac
+		INNER JOIN spip_adherents a ON ac.id_adherent=a.id_adherent
+		INNER JOIN spip_contrats c ON ac.id_contrat=c.id_contrat
+		INNER JOIN spip_quantites q ON ac.id_quantite=q.id_quantite
+		INNER JOIN spip_frequences f ON ac.id_frequence=f.id_frequence
+		WHERE ac.id_contrat IN 
+		(SELECT id_contrat FROM spip_contrats c WHERE CURRENT_TIMESTAMP BETWEEN debut_valid AND fin_valid) 
+		ORDER BY ac.id_adherent, ac.id_contrat 
+		
+*******************************************************************************
+pour affichage de la liste des adhérents pour une distribution
+*******************************************************************************
+
+les distributions selon une date :
+SELECT id_distribution FROM spip_distributions WHERE date_distrib='2020-01-29' 
+
+les adhérents concernés par ces distributions (sans doublon):
+SELECT DISTINCTROW id_adherent, nom FROM spip_adherents a, spip_adherents_distribution ad WHERE a.id_adherent=ad.id_adherent AND id_distribution IN (SELECT id_distribution FROM spip_distributions WHERE date_distrib='2020-01-29') AND quantite>0 ORDER BY id_adherent
+ces adhérents avec les quantités par contrat
+
+les adhérents concernés par ces distributions (sans doublon) avec les quantités pour chaque contrat :
+SELECT ia, acd.nom, qo, ql 
+FROM 
+(SELECT DISTINCTROW a.id_adherent ia, nom FROM spip_adherents a, spip_adherents_distribution ad WHERE a.id_adherent=ad.id_adherent AND id_distribution IN (SELECT id_distribution FROM spip_distributions WHERE date_distrib='2020-01-29') AND quantite>0) AS acd, 
+(SELECT id_adherent iao, quantite qo FROM spip_adherents_distribution WHERE id_distribution IN (SELECT id_distribution FROM spip_distributions WHERE date_distrib='2020-01-29' AND id_contrat=5)) AS do, 
+(SELECT id_adherent ial, quantite ql FROM spip_adherents_distribution WHERE id_distribution IN (SELECT id_distribution FROM spip_distributions WHERE date_distrib='2020-01-29' AND id_contrat=4)) AS dl 
+WHERE ia=iao AND ia=ial ORDER BY acd.nom
+
+PB : ça marcherait si les "sans oeufs" avaient une ligne avec quantité 0 pour la distribution d'oeufs. Pour certains oui mais pour d'autres pas de ligne => ils sont oubliés !!!
+Conclusion :
+- soit 1 requête pour chaque contrat et les résultats sont combinés en php
+- soit on corrige la table adherents_distribution en ajoutant les q =0 manquant pour les oeufs
+
+Il faudrait ajouter aux requêtes :
+- les commentaires pour les adhérents
+- n dates à partir de la date choisie
+- les volontaires pour la distribution et l'émargement
